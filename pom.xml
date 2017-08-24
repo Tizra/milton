@@ -40,12 +40,12 @@
         <module>milton-filesystem</module>
         <module>milton-ftp</module>
         <module>milton-gae</module>
-        <module>milton-client</module>
-		<module>milton-zsync</module>
-		<module>milton-ldap</module>
-		<module>milton-proxy</module>
+        <module>milton-ldap</module>
 		
         <!--
+        <module>milton-client</module>
+        <module>milton-proxy</module>
+        <module>milton-zsync</module>
         <module>milton-filesystem-test</module>
         <module>milton-test</module>
         <module>milton-ajax-demo</module>        
