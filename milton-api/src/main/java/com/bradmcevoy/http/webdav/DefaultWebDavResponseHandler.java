@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http.webdav;
 
 import com.bradmcevoy.http.AuthenticationService;
@@ -9,16 +28,17 @@ import com.bradmcevoy.http.Resource;
 import com.bradmcevoy.http.Response;
 import com.bradmcevoy.http.Response.Status;
 import com.bradmcevoy.http.Utils;
-import com.bradmcevoy.http.XmlWriter;
+import com.bradmcevoy.http.entity.ByteArrayEntity;
+import com.bradmcevoy.http.entity.MultiStatusEntity;
 import com.bradmcevoy.http.exceptions.BadRequestException;
 import com.bradmcevoy.http.exceptions.NotAuthorizedException;
 import com.bradmcevoy.http.exceptions.NotFoundException;
+import com.bradmcevoy.http.http11.Bufferable;
 import com.bradmcevoy.http.http11.DefaultHttp11ResponseHandler;
 import com.bradmcevoy.http.http11.DefaultHttp11ResponseHandler.BUFFERING;
 import com.bradmcevoy.http.http11.Http11ResponseHandler;
 import com.bradmcevoy.http.values.ValueWriters;
 import com.bradmcevoy.http.quota.StorageChecker.StorageErrorReason;
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -31,7 +51,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author brad
  */
-public class DefaultWebDavResponseHandler implements WebDavResponseHandler {
+public class DefaultWebDavResponseHandler implements WebDavResponseHandler, Bufferable {
 
     private static final Logger log = LoggerFactory.getLogger( DefaultWebDavResponseHandler.class );
     protected final Http11ResponseHandler wrapped;
@@ -93,21 +113,7 @@ public class DefaultWebDavResponseHandler implements WebDavResponseHandler {
         List<String> supportedLevels = resourceTypeHelper.getSupportedLevels( resource );
         String s = Utils.toCsv( supportedLevels );
         response.setDavHeader( s );
-		
-
-        XmlWriter writer = new XmlWriter( response.getOutputStream() );
-        writer.writeXMLHeader();
-        writer.open( "multistatus xmlns:D" + "=\"" + WebDavProtocol.NS_DAV + ":\"" ); // only single namespace for this method
-        writer.newLine();
-        for( HrefStatus status : statii ) {
-            XmlWriter.Element elResponse = writer.begin( "response" ).open();
-            writer.writeProperty( "", "href", status.href );
-            writer.writeProperty( "", "status", status.status.code + "" );
-            elResponse.close();
-        }
-        writer.close( "multistatus" );
-        writer.flush();
-
+        response.setEntity(new MultiStatusEntity(statii));
     }
 
 	@Override
@@ -220,11 +226,7 @@ public class DefaultWebDavResponseHandler implements WebDavResponseHandler {
             throw new RuntimeException( ex );
         }
         response.setContentLengthHeader( (long) arr.length );
-        try {
-            response.getOutputStream().write( arr );
-        } catch( IOException ex ) {
-            throw new RuntimeException( ex );
-        }
+        response.setEntity(new ByteArrayEntity(arr));
     }
 
 	@Override
@@ -238,21 +240,25 @@ public class DefaultWebDavResponseHandler implements WebDavResponseHandler {
     }
 
 	@Override
-    public void respondPreconditionFailed( Request request, Response response, Resource resource ) {
-        response.setStatus( Status.SC_PRECONDITION_FAILED );
-    }
+	public void respondPreconditionFailed(Request request, Response response, Resource resource) {
+		wrapped.respondPreconditionFailed(request, response, resource);
+	}
 
+	
+
+	@Override
     public BUFFERING getBuffering() {
-        if( wrapped instanceof DefaultHttp11ResponseHandler) {
-            return ((DefaultHttp11ResponseHandler)wrapped).getBuffering();
+        if( wrapped instanceof Bufferable) {
+            return ((Bufferable)wrapped).getBuffering();
         } else {
             throw new RuntimeException( "Wrapped class is not a known type");
         }
     }
 
+	@Override
     public void setBuffering( BUFFERING buffering ) {
-        if( wrapped instanceof DefaultHttp11ResponseHandler) {
-            ((DefaultHttp11ResponseHandler)wrapped).setBuffering( buffering );
+        if( wrapped instanceof Bufferable) {
+            ((Bufferable)wrapped).setBuffering( buffering );
         } else {
             throw new RuntimeException( "Wrapped class is not a known type");
         }

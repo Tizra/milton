@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http;
 
 import java.io.OutputStream;
@@ -44,7 +63,7 @@ public interface Response {
         LAST_MODIFIED( "Last-Modified" ),
         LOCK_TOKEN( "Lock-Token" ),
         EXPIRES( "Expires" ),
-        ETAG( "Etag" ),
+        ETAG( "ETag" ),
         VARY( "Vary" ),
         CONTENT_RANGE( "Content-Range" );
         public String code;
@@ -82,6 +101,7 @@ public interface Response {
         SC_MULTI_STATUS( 207, "Multi-status" ),
         SC_MOVED_PERMANENTLY( ResponseStatus.SC_MOVED_PERMANENTLY ),
         SC_MOVED_TEMPORARILY( ResponseStatus.SC_MOVED_TEMPORARILY ),
+		SC_TEMPORARY_REDIRECT( ResponseStatus.SC_TEMPORARY_REDIRECT ),
         SC_NOT_MODIFIED( ResponseStatus.SC_NOT_MODIFIED ),
         SC_BAD_REQUEST( ResponseStatus.SC_BAD_REQUEST ),
         SC_UNAUTHORIZED( ResponseStatus.SC_UNAUTHORIZED ),
@@ -131,6 +151,10 @@ public interface Response {
         }
     }
 
+    public interface Entity {
+        void write(Response response, OutputStream outputStream) throws Exception;
+    }
+
     public Response.Status getStatus();
 
     public Map<String, String> getHeaders();
@@ -171,6 +195,10 @@ public interface Response {
     void setContentTypeHeader( String string );
 
     String getContentTypeHeader();
+
+    Entity getEntity();
+
+    void setEntity(Entity entity);
 
     /**
      * Set the cache control header to allow the resource to be cached
@@ -216,7 +244,7 @@ public interface Response {
      * Will set the status to moved_temporaruly and set the location header
      * to the given url
      * 
-     * @param unencodedUrl
+     * @param url
      */
     void sendRedirect( String url );
 

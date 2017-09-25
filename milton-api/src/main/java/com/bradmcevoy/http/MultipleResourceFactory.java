@@ -13,7 +13,7 @@ public class MultipleResourceFactory implements ResourceFactory {
     private Logger log = LoggerFactory.getLogger( MultipleResourceFactory.class );
     protected final List<ResourceFactory> factories;
     protected Map<String, ResourceFactory> mapOfFactoriesByHost;
-
+	
     public MultipleResourceFactory() {
         factories = new ArrayList<ResourceFactory>();
     }
@@ -45,6 +45,19 @@ public class MultipleResourceFactory implements ResourceFactory {
         return theResource;
     }
 
+	/**
+	 * Allows factories to be added after construction
+	 * 
+	 * @param rf 
+	 */
+	public void add(ResourceFactory rf) {
+		factories.add(rf);
+	}
+	
+	public void addAsFirst(ResourceFactory rf) {
+		factories.add(0, rf);
+	}	
+	
     /**
      * When set will always be used exclusively for any matching hosts
      * 
@@ -62,9 +75,12 @@ public class MultipleResourceFactory implements ResourceFactory {
         for( ResourceFactory rf : factories ) {
             Resource r = rf.getResource( host, url );
             if( r != null ) {
+				if(log.isTraceEnabled()) {
+					log.trace("Found resource: " + r.getClass() + " from factory: " + rf.getClass());
+				}
                 return r;
             }
         }
         return null;
-    }
+    }	
 }

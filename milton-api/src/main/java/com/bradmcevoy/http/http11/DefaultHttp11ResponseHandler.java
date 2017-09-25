@@ -1,11 +1,29 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http.http11;
 
 import com.bradmcevoy.http.*;
 import com.bradmcevoy.http.Response.Status;
+import com.bradmcevoy.http.entity.BufferingGetableResourceEntity;
+import com.bradmcevoy.http.entity.GetableResourceEntity;
 import com.bradmcevoy.http.exceptions.BadRequestException;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -15,19 +33,34 @@ import org.slf4j.LoggerFactory;
 
 import com.bradmcevoy.http.exceptions.NotAuthorizedException;
 import com.bradmcevoy.http.exceptions.NotFoundException;
-import com.bradmcevoy.io.BufferingOutputStream;
-import com.bradmcevoy.io.ReadingException;
-import com.bradmcevoy.io.StreamUtils;
-import com.bradmcevoy.io.WritingException;
 import com.ettrema.sso.ExternalIdentityProvider;
+import java.io.IOException;
 import java.io.InputStream;
-import org.apache.commons.io.IOUtils;
+import java.util.Properties;
 
 /**
  *
  */
-public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
+public class DefaultHttp11ResponseHandler implements Http11ResponseHandler, Bufferable {
 
+	private static String miltonVerson;	
+	{
+		Properties props = new Properties();
+		try {
+			InputStream in = DefaultHttp11ResponseHandler.class.getResourceAsStream("/META-INF/maven/com.ettrema/milton-api/pom.properties");
+			if( in != null ) {
+				props.load(in);
+				miltonVerson = props.getProperty("version");
+			} else {
+				miltonVerson = "unknown.version";
+			}
+		} catch (IOException ex) {
+			log.warn("Failed lot load maven properties file", ex);
+			miltonVerson = "unknown.version";
+		}		
+	}
+	
+	
 	public enum BUFFERING {
 
 		always,
@@ -84,11 +117,12 @@ public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
 	}
 
 	@Override
-	public void respondUnauthorised(Resource resource, Response response, Request request) {
-		log.trace("respondUnauthorised");
+	public void respondUnauthorised(Resource resource, Response response, Request request) {		
 		if (authenticationService.canUseExternalAuth(resource, request)) {
+			log.info("respondUnauthorised: use external authentication");
 			initiateExternalAuth(resource, request, response);
 		} else {
+			log.info("respondUnauthorised: return staus: " + Response.Status.SC_UNAUTHORIZED);
 			response.setStatus(Response.Status.SC_UNAUTHORIZED);
 			List<String> challenges = authenticationService.getChallenges(resource, request);
 			response.setAuthenticateHeader(challenges);
@@ -147,7 +181,7 @@ public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
 	@Override
 	public void respondCreated(Resource resource, Response response, Request request) {
 //        log.debug( "respondCreated" );
-		response.setStatus(Response.Status.SC_CREATED);
+		setRespondCommonHeaders(response, resource, Status.SC_CREATED, request.getAuthorization());
 	}
 
 	@Override
@@ -155,7 +189,7 @@ public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
 //        log.debug( "respondNoContent" );
 		//response.setStatus(Response.Status.SC_OK);
 		// see comments in http://www.ettrema.com:8080/browse/MIL-87
-		response.setStatus(Response.Status.SC_NO_CONTENT);
+		setRespondCommonHeaders(response, resource, Status.SC_NO_CONTENT, request.getAuthorization());
 	}
 
 	@Override
@@ -173,11 +207,7 @@ public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
 		if (ct != null) {
 			response.setContentTypeHeader(ct);
 		}
-		try {
-			resource.sendContent(response.getOutputStream(), range, params, ct);
-		} catch (IOException ex) {
-			log.warn("IOException writing to output, probably client terminated connection", ex);
-		}
+        response.setEntity(new GetableResourceEntity(resource, range, params, ct));
 	}
 
 	@Override
@@ -231,40 +261,14 @@ public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
 				if (contentLength != null) {
 					response.setContentLengthHeader(contentLength);
 				}
-				sendContent(request, response, (GetableResource) resource, params, null, ct);
+                response.setEntity(new GetableResourceEntity(
+                   gr, params, ct
+                ));
 			} else {
-				log.trace("buffering content...");
-				BufferingOutputStream tempOut = new BufferingOutputStream(maxMemorySize);
-				try {
-					((GetableResource) resource).sendContent(tempOut, null, params, ct);
-					tempOut.close();
-				} catch (IOException ex) {
-					tempOut.deleteTempFileIfExists();
-					throw new RuntimeException("Exception generating buffered content", ex);
-				}
-				Long bufContentLength = tempOut.getSize();
-				if (contentLength != null) {
-					if (!contentLength.equals(bufContentLength)) {
-						throw new RuntimeException("Content Length specified by resource: " + contentLength + " is not equal to the size of content when generated: " + bufContentLength + " This error can be suppressed by setting the buffering property to whenNeeded or never");
-					}
-				}
-				log.trace("sending buffered content...");
-				response.setContentLengthHeader(bufContentLength);
-				InputStream in = tempOut.getInputStream();
-				try {
-					StreamUtils.readTo(in, response.getOutputStream());
-				} catch (ReadingException ex) {
-					throw new RuntimeException(ex);
-				} catch (WritingException ex) {
-					log.warn("exception writing, client probably closed connection", ex);
-				} finally {
-					IOUtils.closeQuietly(in); // make sure we close to delete temporary file
-				}
-				return;
-
-
+                response.setEntity(new BufferingGetableResourceEntity(
+                   gr, params, ct, contentLength, getMaxMemorySize()
+                ));
 			}
-
 		}
 	}
 
@@ -287,47 +291,26 @@ public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
 		cacheControlHelper.setCacheControl(resource, response, request.getAuthorization());
 	}
 
-	protected void sendContent(Request request, Response response, GetableResource resource, Map<String, String> params, Range range, String contentType) throws NotAuthorizedException, BadRequestException, NotFoundException {
-		long l = System.currentTimeMillis();
-		log.trace("sendContent");
-		OutputStream out = outputStreamForResponse(request, response, resource);
-		try {
-			resource.sendContent(out, null, params, contentType);
-			out.flush();
-			if (log.isTraceEnabled()) {
-				l = System.currentTimeMillis() - l;
-				log.trace("sendContent finished in " + l + "ms");
-			}
-		} catch (IOException ex) {
-			log.warn("IOException sending content", ex);
-		}
-	}
-
-	protected OutputStream outputStreamForResponse(Request request, Response response, GetableResource resource) {
-		OutputStream outToUse = response.getOutputStream();
-		return outToUse;
-	}
-
-	protected void output(final Response response, final String s) {
-		PrintWriter pw = new PrintWriter(response.getOutputStream(), true);
-		pw.print(s);
-		pw.flush();
-	}
-
 	protected void setRespondContentCommonHeaders(Response response, Resource resource, Auth auth) {
 		setRespondContentCommonHeaders(response, resource, Response.Status.SC_OK, auth);
 	}
 
 	protected void setRespondContentCommonHeaders(Response response, Resource resource, Response.Status status, Auth auth) {
+		setRespondCommonHeaders(response, resource, status, auth);
+		setModifiedDate(response, resource, auth);
+	}
+
+	protected void setRespondCommonHeaders(Response response, Resource resource, Response.Status status, Auth auth) {
 		response.setStatus(status);
+		response.setNonStandardHeader("Server", "milton.io-" + miltonVerson);
 		response.setDateHeader(new Date());
 		String etag = eTagGenerator.generateEtag(resource);
 		if (etag != null) {
 			response.setEtag(etag);
 		}
-		setModifiedDate(response, resource, auth);
 	}
-
+	
+	
 	/**
 	 * The modified date response header is used by the client for content
 	 * caching. It seems obvious that if we have a modified date on the resource
@@ -376,6 +359,11 @@ public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
 	public void respondDeleteFailed(Request request, Response response, Resource resource, Status status) {
 		response.setStatus(status);
 	}
+	
+	@Override
+    public void respondPreconditionFailed( Request request, Response response, Resource resource ) {
+        response.setStatus( Status.SC_PRECONDITION_FAILED );
+    }	
 
 	public AuthenticationService getAuthenticationService() {
 		return authenticationService;
@@ -395,10 +383,12 @@ public class DefaultHttp11ResponseHandler implements Http11ResponseHandler {
 		this.maxMemorySize = maxMemorySize;
 	}
 
+	@Override
 	public BUFFERING getBuffering() {
 		return buffering;
 	}
 
+	@Override
 	public void setBuffering(BUFFERING buffering) {
 		this.buffering = buffering;
 	}

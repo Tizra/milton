@@ -1,7 +1,7 @@
 milton
 ======
 
-Milton 1.7.2 sources, specifically milton-api and milton-servlet.
+Milton 1.8.1.4 sources, specifically milton-api and milton-servlet.
 
 These build on jitpack.io, for example:
 
@@ -18,12 +18,12 @@ These build on jitpack.io, for example:
 <dependency>
     <groupId>com.github.agriffis.milton</groupId>
     <artifactId>milton-api</artifactId>
-    <version>1.7.2</version>
+    <version>1.8.1.4</version>
 </dependency>
 
 <dependency>
     <groupId>com.github.agriffis.milton</groupId>
     <artifactId>milton-servlet</artifactId>
-    <version>1.7.2</version>
+    <version>1.8.1.4</version>
 </dependency>
 ```

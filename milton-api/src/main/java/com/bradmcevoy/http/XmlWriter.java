@@ -1,17 +1,31 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http;
 
-import org.apache.commons.io.output.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.Writer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.bradmcevoy.io.FileUtils;
+import java.nio.charset.Charset;
 
 /**
  * Lightweight XML generation. Gives the programmer fine grained control
@@ -25,18 +39,30 @@ public class XmlWriter {
 
     private Logger log = LoggerFactory.getLogger(XmlWriter.class);
 
+	public static Charset utf8() {
+		return Charset.forName("UTF-8");
+	}
+	
     public enum Type {
 
         OPENING,
         CLOSING,
         NO_CONTENT
     };
-    protected final Writer writer;
+    protected final OutputStream out;
+	protected final Charset charset;
 
-    public XmlWriter(OutputStream out) {
-        this.writer = new PrintWriter(out, true);
+    public XmlWriter(OutputStream out, Charset charset) {
+        this.out = out;
+		this.charset = charset;
     }
 
+    public XmlWriter(OutputStream out) {
+        this.out = out;
+		this.charset = XmlWriter.utf8();
+    }
+	
+	
     /**
      * Append the given raw String to the ouput. No encoding is applied
      *
@@ -44,7 +70,8 @@ public class XmlWriter {
      */
     private void append(String value) {
         try {
-            writer.write(value);
+			byte[] arr = value.getBytes(charset);
+            out.write(arr);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
@@ -57,7 +84,7 @@ public class XmlWriter {
      */
     private void append(char c) {
         try {
-            writer.write((int) c);
+            out.write(c);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
@@ -439,23 +466,9 @@ public class XmlWriter {
      */
     public void flush() {
         try {
-            writer.flush();
+            out.flush();
         } catch (IOException ex) {
             throw new RuntimeException(ex);
-        }
-    }
-
-    public void sample(InputStream in) {
-        log.debug("outputting sample");
-        try {
-            ByteArrayOutputStream out = FileUtils.readIn(in);
-            writer.write(out.toString());
-        } catch (FileNotFoundException ex) {
-            log.error("", ex);
-        } catch (IOException ex) {
-            log.error("", ex);
-        } finally {
-            FileUtils.close(in);
         }
     }
 

@@ -1,6 +1,25 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http.http11;
 
-import com.bradmcevoy.common.ContentTypeUtils;
+import com.bradmcevoy.common.ContentTypeService;
 import com.bradmcevoy.common.Path;
 import com.bradmcevoy.http.*;
 import com.bradmcevoy.http.exceptions.BadRequestException;
@@ -10,6 +29,7 @@ import com.bradmcevoy.http.exceptions.NotFoundException;
 import com.ettrema.common.LogUtils;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,9 +41,15 @@ public class PutHelper {
 
     private static final Logger log = LoggerFactory.getLogger( PutHelper.class );
 
+	private final ContentTypeService contentTypeService;
+	
+	public PutHelper(ContentTypeService contentTypeService) {
+		this.contentTypeService = contentTypeService;
+	}
+
+	
+	
     /**
-     * Largly copied from tomcat
-     *
      * See the spec
      * http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html
      *
@@ -134,15 +160,19 @@ public class PutHelper {
      * @return
      */
     public String findContentTypes( Request request, String newName ) {
-//        String ct = request.getContentTypeHeader();
-//        if( ct != null ) {
-//			LogUtils.trace(log, "findContentTypes: got header: " + ct);
-//			return ct;
-//		}
+        String ct = request.getContentTypeHeader();
+        if( ct != null ) {
+			LogUtils.trace(log, "findContentTypes: got header: ", ct);
+			return ct;
+		}
 
-        String s = ContentTypeUtils.findContentTypes( newName );
-		LogUtils.trace(log, "findContentTypes: got type from name. Type: " + s);
-		return s;
+        List<String> contentTypes = contentTypeService.findContentTypes( newName );
+		String ctList = "";
+		if( contentTypes != null ) {
+			ctList = Utils.toCsv(contentTypes);
+		}
+		LogUtils.trace(log, "findContentTypes: got type from name. Type: ", ctList);
+		return ctList;
     }
 
 

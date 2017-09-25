@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.ettrema.http.fck;
 
 import com.bradmcevoy.common.Path;
@@ -72,7 +91,7 @@ public class FckFileManagerResource extends FckCommon implements GetableResource
                 uploadParams.newName = "";
             }
             s = s.replace( "[name]", uploadParams.newName );
-            out.write( s.getBytes() );
+            out.write( s.getBytes("UTF-8") );
         } else {
             FckGetParams getParams = new FckGetParams( out, params );
             try {
@@ -261,7 +280,7 @@ public class FckFileManagerResource extends FckCommon implements GetableResource
             sb.append( "</script>\n" );
             String s = sb.toString();
             try {
-                out.write( s.getBytes() );
+                out.write( s.getBytes("UTF-8") );
                 out.flush();
             } catch( IOException e ) {
                 log.warn( "ioexception writing response to upload", e );

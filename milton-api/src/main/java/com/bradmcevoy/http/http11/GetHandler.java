@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http.http11;
 
 import com.bradmcevoy.http.*;
@@ -20,10 +39,12 @@ public class GetHandler implements ExistingEntityHandler {
     private final HandlerHelper handlerHelper;
     private final ResourceHandlerHelper resourceHandlerHelper;
 	private final PartialGetHelper partialGetHelper;
+	private final MatchHelper matchHelper;
 
-    public GetHandler( Http11ResponseHandler responseHandler, HandlerHelper handlerHelper ) {
+    public GetHandler( Http11ResponseHandler responseHandler, HandlerHelper handlerHelper, DefaultMatchHelper matchHelper ) {
         this.responseHandler = responseHandler;
         this.handlerHelper = handlerHelper;
+		this.matchHelper = matchHelper;
         this.resourceHandlerHelper = new ResourceHandlerHelper( handlerHelper, responseHandler );
 		partialGetHelper = new PartialGetHelper(responseHandler);
     }
@@ -66,21 +87,16 @@ public class GetHandler implements ExistingEntityHandler {
             log.trace( "resource has null max age, so not modified response is disabled" );
             return false;
         }
-        if( checkIfMatch( resource, request ) ) {
-            return true;
-        }
         if( checkIfModifiedSince( resource, request ) ) {
             log.trace( "is not modified since" );
             return true;
         }
-        if( checkIfNoneMatch( resource, request ) ) {
+		// only proceed with the GET (ie return false) if there is no match
+        if( matchHelper.checkIfNoneMatch(resource, request) ) {
+			log.trace("conditional check, if-none-match returned true");
             return true;
         }
         return false;
-    }
-
-    private boolean checkIfMatch( GetableResource handler, Request requestInfo ) {
-        return false;   // TODO: not implemented
     }
 
     /**
@@ -140,9 +156,6 @@ public class GetHandler implements ExistingEntityHandler {
         }
     }
 
-    private boolean checkIfNoneMatch( GetableResource handler, Request requestInfo ) {
-        return false;   // TODO: not implemented
-    }
 
     @Override
     public String[] getMethods() {

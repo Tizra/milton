@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http;
 
 import java.io.ByteArrayInputStream;
@@ -42,16 +61,21 @@ public class DebugFilter implements Filter{
 
 
     public void process(FilterChain chain, Request request, Response response) {
-        try {
-            DebugRequest req2 = new DebugRequest(request);
-            DebugResponse resp2 = new DebugResponse(response);
-            chain.process(req2, resp2);
-            record(req2,resp2);
-            response.getOutputStream().write(resp2.out.toByteArray());
-            response.getOutputStream().flush();
-        } catch (IOException ex) {
-            log.error("", ex);
-        }
+        DebugRequest req2 = new DebugRequest(request);
+        final DebugResponse resp2 = new DebugResponse(response);
+        chain.process(req2, resp2);
+        record(req2, resp2);
+        response.setEntity(new Response.Entity() {
+            @Override
+            public void write(Response response, OutputStream outputStream) throws Exception {
+                try {
+                    outputStream.write(resp2.out.toByteArray());
+                    outputStream.flush();
+                } catch (IOException ex) {
+                    log.error("", ex);
+                }
+            }
+        });
     }
 
     private synchronized void record(DebugRequest req2, DebugResponse resp2) {
@@ -94,26 +118,32 @@ public class DebugFilter implements Filter{
             out = new ByteArrayOutputStream();
         }
 
+		@Override
         public Status getStatus() {
             return r.getStatus();
         }
 
+		@Override
         public void setStatus(Status status) {
             r.setStatus(status);
         }
 
+		@Override
         public void setNonStandardHeader(String code, String value) {
             r.setNonStandardHeader(code, value);
         }
 
+		@Override
         public String getNonStandardHeader(String code) {
             return r.getNonStandardHeader(code);
         }
 
+		@Override
         public OutputStream getOutputStream() {
             return out;
         }
 
+		@Override
         public  Map<String,String> getHeaders() {
             return r.getHeaders();
         }
@@ -144,18 +174,26 @@ public class DebugFilter implements Filter{
             }
         }
 
+		@Override
         public void setAuthenticateHeader( List<String> challenges ) {
             this.challenges = challenges;
             r.setAuthenticateHeader( challenges );
         }
 
+		@Override
         public Cookie setCookie( Cookie cookie ) {
             return r.setCookie( cookie );
         }
 
+		@Override
         public Cookie setCookie( String name, String value ) {
             return r.setCookie( name, value );
         }
+
+		@Override
+		public void close() {
+			r.close();
+		}
 
 
     }

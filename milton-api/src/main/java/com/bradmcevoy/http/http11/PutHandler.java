@@ -1,5 +1,25 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http.http11;
 
+import com.bradmcevoy.common.ContentTypeService;
 import com.bradmcevoy.http.*;
 import com.bradmcevoy.http.exceptions.BadRequestException;
 import com.bradmcevoy.http.exceptions.NotFoundException;
@@ -32,21 +52,24 @@ public class PutHandler implements Handler {
 	private final Http11ResponseHandler responseHandler;
 	private final HandlerHelper handlerHelper;
 	private final PutHelper putHelper;
+	private final MatchHelper matchHelper;
 
-	public PutHandler(Http11ResponseHandler responseHandler, HandlerHelper handlerHelper) {
+	public PutHandler(Http11ResponseHandler responseHandler, HandlerHelper handlerHelper, ContentTypeService contentTypeService, DefaultMatchHelper matchHelper) {
 		this.responseHandler = responseHandler;
 		this.handlerHelper = handlerHelper;
-		this.putHelper = new PutHelper();
+		this.putHelper = new PutHelper(contentTypeService);
+		this.matchHelper = matchHelper;
 		checkResponseHandler();
 	}
 
-	public PutHandler(Http11ResponseHandler responseHandler, HandlerHelper handlerHelper, PutHelper putHelper) {
+	public PutHandler(Http11ResponseHandler responseHandler, HandlerHelper handlerHelper, PutHelper putHelper, DefaultMatchHelper matchHelper) {
 		this.responseHandler = responseHandler;
 		this.handlerHelper = handlerHelper;
 		this.putHelper = putHelper;
+		this.matchHelper = matchHelper;
 		checkResponseHandler();
 	}
-
+	
 	private void checkResponseHandler() {
 		if (!(responseHandler instanceof WebDavResponseHandler)) {
 			log.warn("response handler is not a WebDavResponseHandler, so locking and quota checking will not be enabled");
@@ -88,6 +111,18 @@ public class PutHandler implements Handler {
 				respondLocked(request, response, existingResource);
 				return;
 			}
+			// Check if the resource has been modified based on etags
+			if( !matchHelper.checkIfMatch(existingResource, request)) {
+				log.info("if-match comparison failed, aborting PUT request");
+				responseHandler.respondPreconditionFailed(request, response, existingResource);
+				return ;
+			}
+			if( matchHelper.checkIfNoneMatch(existingResource, request)) {
+				log.info("if-none-match comparison failed, aborting PUT request");
+				responseHandler.respondPreconditionFailed(request, response, existingResource);
+				return ;
+			}
+			
 			Resource parent = manager.getResourceFactory().getResource(host, path.getParent().toString());
 			if (parent instanceof CollectionResource) {
 				CollectionResource parentCol = (CollectionResource) parent;
@@ -96,6 +131,17 @@ public class PutHandler implements Handler {
 				log.warn("parent exists but is not a collection resource: " + path.getParent());
 			}
 		} else {
+			if( !matchHelper.checkIfMatch(null, request)) {
+				log.info("if-match comparison failed on null resource, aborting PUT request");
+				responseHandler.respondPreconditionFailed(request, response, existingResource);
+				return ;
+			}
+			if( matchHelper.checkIfNoneMatch(null, request)) {
+				log.info("if-none-match comparison failed on null resource, aborting PUT request");
+				responseHandler.respondPreconditionFailed(request, response, existingResource);
+				return ;
+			}
+			
 			CollectionResource parentCol = putHelper.findNearestParent(manager, host, path);
 			storageErr = handlerHelper.checkStorageOnAdd(request, parentCol, path.getParent(), host);
 		}
@@ -141,6 +187,7 @@ public class PutHandler implements Handler {
 						PutableResource putableResource = (PutableResource) folderResource;
 						processCreate(manager, request, response, putableResource, nameToCreate);
 					} else {
+						LogUtils.debug(log, "method not implemented: PUT on class: ", folderResource.getClass(), folderResource.getName());
 						manager.getResponseHandler().respondMethodNotImplemented(folderResource, response, request);
 					}
 				} finally {
@@ -170,14 +217,13 @@ public class PutHandler implements Handler {
 					log.warn("getName on the created resource does not match the name requested by the client! requested: " + newName + " - created: " + newlyCreated.getName());
 				}
 				manager.getEventManager().fireEvent(new PutEvent(newlyCreated));
+				manager.getResponseHandler().respondCreated(newlyCreated, response, request);
 			} else {
-				log.warn("createNew returned a null resource");
+				throw new RuntimeException("createNew method on: " + folder.getClass() + " returned a null resource. Must return a reference to the newly created or modified resource");
 			}			
 		} catch (IOException ex) {
-			log.warn("IOException reading input stream. Probably interrupted upload: " + ex.getMessage());
-			return;
-		}
-		manager.getResponseHandler().respondCreated(folder, response, request);
+			throw new RuntimeException("IOException reading input stream. Probably interrupted upload", ex);
+		}		
 	}
 
 	private CollectionResource findOrCreateFolders(HttpManager manager, String host, Path path) throws NotAuthorizedException, ConflictException, BadRequestException {
@@ -211,7 +257,7 @@ public class PutHandler implements Handler {
 		if (r == null) {
 			if (parent instanceof MakeCollectionableResource) {
 				MakeCollectionableResource mkcol = (MakeCollectionableResource) parent;
-				log.debug("autocreating new folder: " + path.getName());
+				LogUtils.debug(log, "autocreating new folder: ", path.getName());
 				CollectionResource newCol = mkcol.createCollection(path.getName());
 				manager.getEventManager().fireEvent(new NewFolderEvent(newCol));
 				return newCol;

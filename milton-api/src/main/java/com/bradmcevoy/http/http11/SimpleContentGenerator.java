@@ -1,3 +1,22 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http.http11;
 
 import com.bradmcevoy.http.AuthenticationService;
@@ -6,9 +25,11 @@ import com.bradmcevoy.http.Resource;
 import com.bradmcevoy.http.Response;
 import com.bradmcevoy.http.Response.Status;
 import com.ettrema.sso.ExternalIdentityProvider;
-import java.io.PrintWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.OutputStream;
+import java.io.PrintWriter;
 
 /**
  * Just uses simple property values to generate error content
@@ -52,10 +73,15 @@ public class SimpleContentGenerator implements ContentGenerator {
 			default:
 				template = getUnknown();
 		}
-		template = applyTemplates(template, request);
-		PrintWriter pw = new PrintWriter(response.getOutputStream(), true);
-		pw.print(template);
-		pw.flush();
+		final String finalTemplate = applyTemplates(template, request);
+        response.setEntity(new Response.Entity() {
+            @Override
+            public void write(Response response, OutputStream outputStream) throws Exception {
+                PrintWriter pw = new PrintWriter(outputStream, true);
+                pw.print(finalTemplate);
+                pw.flush();
+            }
+        });
 	}
 
 	private String applyTemplates(String template, Request request) {
@@ -74,10 +100,15 @@ public class SimpleContentGenerator implements ContentGenerator {
 				sb.append("<li>").append("<a href='").append(resource.getName()).append("?_ip=").append(ip.getName()).append("'>").append(ip.getName()).append("</a>").append("</li>");
 			}
 			sb.append("</ul>");
-			template = template.replace("${externalProviders}", template);
-			PrintWriter pw = new PrintWriter(response.getOutputStream(), true);
-			pw.print(template);
-			pw.flush();
+            final String finalTemplate = applyTemplates(template, request);
+            response.setEntity(new Response.Entity() {
+                @Override
+                public void write(Response response, OutputStream outputStream) throws Exception {
+                    PrintWriter pw = new PrintWriter(outputStream, true);
+                    pw.print(finalTemplate);
+                    pw.flush();
+                }
+            });
 		} else {
 			generate(resource, request, response, Status.SC_UNAUTHORIZED);
 		}

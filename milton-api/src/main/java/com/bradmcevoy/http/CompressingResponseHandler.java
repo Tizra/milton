@@ -1,5 +1,26 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http;
 
+import com.bradmcevoy.http.entity.CompressedResourceEntity;
+import com.bradmcevoy.http.entity.InputStreamEntity;
 import com.bradmcevoy.http.exceptions.NotFoundException;
 import com.bradmcevoy.http.http11.DefaultHttp11ResponseHandler;
 import com.bradmcevoy.http.exceptions.BadRequestException;
@@ -16,13 +37,7 @@ import com.bradmcevoy.http.http11.DefaultCacheControlHelper;
 import com.bradmcevoy.http.webdav.WebDavResponseHandler;
 import com.bradmcevoy.io.BufferingOutputStream;
 import com.bradmcevoy.io.FileUtils;
-import com.bradmcevoy.io.ReadingException;
-import com.bradmcevoy.io.StreamUtils;
-import com.bradmcevoy.io.WritingException;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Date;
-import org.apache.commons.io.IOUtils;
 
 /**
  * Response Handler which wraps another, and compresses content if appropriate
@@ -75,17 +90,15 @@ public class CompressingResponseHandler extends AbstractWrappingResponseHandler 
 				CompressedResource compressedResource = (CompressedResource) r;
 				String acceptableEncoding = compressedResource.getSupportedEncoding(acceptableEncodings);
 				if (acceptableEncoding != null) {
-					try {
-						response.setContentTypeHeader(contentType);
-						cacheControlHelper.setCacheControl(r, response, request.getAuthorization());
-						Long contentLength = compressedResource.getCompressedContentLength(acceptableEncoding);
-						response.setContentLengthHeader(contentLength);
-						response.setContentEncodingHeader(Response.ContentEncoding.GZIP);
-						response.setVaryHeader("Accept-Encoding");
-						compressedResource.sendCompressedContent(acceptableEncoding, response.getOutputStream(), null, params, contentType);
-					} catch (IOException ex) {
-						log.warn("IOException sending compressed content", ex);
-					}
+                    response.setContentTypeHeader(contentType);
+                    cacheControlHelper.setCacheControl(r, response, request.getAuthorization());
+                    Long contentLength = compressedResource.getCompressedContentLength(acceptableEncoding);
+                    response.setContentLengthHeader(contentLength);
+                    response.setContentEncodingHeader(Response.ContentEncoding.GZIP);
+                    response.setVaryHeader("Accept-Encoding");
+                    response.setEntity(new CompressedResourceEntity(
+                       compressedResource, params, contentType, acceptableEncoding
+                    ));
 					return;
 				}
 			}
@@ -121,18 +134,7 @@ public class CompressingResponseHandler extends AbstractWrappingResponseHandler 
 				}
 				response.setContentTypeHeader(contentType);
 				cacheControlHelper.setCacheControl(r, response, request.getAuthorization());
-				InputStream in = tempOut.getInputStream();
-				try {
-					StreamUtils.readTo(in, response.getOutputStream());
-				} catch (ReadingException ex) {
-					throw new RuntimeException(ex);
-				} catch (WritingException ex) {
-					log.warn("exception writing, client probably closed connection", ex);
-				} finally {
-					IOUtils.closeQuietly(in);
-				}
-				log.trace("finished sending content");
-				return;
+                response.setEntity(new InputStreamEntity(tempOut.getInputStream()));
 			} else {
 				log.trace("respondContent: not compressable");
 				// We really should set this header, but it causes IE to not cache files (eg images)

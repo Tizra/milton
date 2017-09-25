@@ -1,9 +1,32 @@
+/*
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
+
 package com.bradmcevoy.http;
 
+import com.bradmcevoy.http.entity.DefaultEntityTransport;
+import com.bradmcevoy.http.entity.EntityTransport;
 import com.bradmcevoy.http.exceptions.BadRequestException;
 import com.bradmcevoy.http.exceptions.ConflictException;
 import com.bradmcevoy.http.exceptions.NotAuthorizedException;
+import com.bradmcevoy.http.http11.Bufferable;
 import com.bradmcevoy.http.http11.CustomPostHandler;
+import com.bradmcevoy.http.http11.DefaultHttp11ResponseHandler;
 import com.bradmcevoy.http.http11.Http11ResponseHandler;
 import com.bradmcevoy.http.http11.auth.ExpiredNonceRemover;
 import com.bradmcevoy.http.http11.auth.Nonce;
@@ -18,6 +41,7 @@ import com.ettrema.event.EventManager;
 import com.ettrema.event.EventManagerImpl;
 import com.ettrema.event.RequestEvent;
 import com.ettrema.event.ResponseEvent;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -58,6 +82,7 @@ public class HttpManager {
 	private PropertyAuthoriser propertyPermissionService;
 	private EventManager eventManager = new EventManagerImpl();
 	private final List<Stoppable> shutdownHandlers = new CopyOnWriteArrayList<Stoppable>();
+	private EntityTransport entityTransport;
 
 	/**
 	 * Creates the manager with a DefaultResponseHandler
@@ -79,6 +104,8 @@ public class HttpManager {
 		this.responseHandler = webdavResponseHandler;
 		this.handlers = new ProtocolHandlers(webdavResponseHandler, authenticationService);
 
+		entityTransport = new DefaultEntityTransport(); // default implementation, can be overridden with setter
+		
 		initHandlers();
 
 		shutdownHandlers.add(expiredNonceRemover);
@@ -96,6 +123,8 @@ public class HttpManager {
 		this.responseHandler = webdavResponseHandler;
 		this.handlers = new ProtocolHandlers(webdavResponseHandler, authenticationService);
 
+		entityTransport = new DefaultEntityTransport(); // default implementation, can be overridden with setter
+		
 		initHandlers();
 	}
 
@@ -107,6 +136,8 @@ public class HttpManager {
 		this.responseHandler = responseHandler;
 		this.handlers = new ProtocolHandlers(responseHandler, authenticationService);
 
+		entityTransport = new DefaultEntityTransport(); // default implementation, can be overridden with setter
+		
 		initHandlers();
 	}
 
@@ -118,7 +149,18 @@ public class HttpManager {
 		this.responseHandler = responseHandler;
 		this.handlers = handlers;
 
+		entityTransport = new DefaultEntityTransport(); // default implementation, can be overridden with setter
+		
 		initHandlers();
+	}
+
+	public void sendResponseEntity(Response response) throws Exception {
+		entityTransport.sendResponseEntity(response);
+	}
+
+	public void closeResponse(Response response) {
+		entityTransport.closeResponse(response);
+
 	}
 
 	private void initHandlers() {
@@ -333,4 +375,30 @@ public class HttpManager {
 			}
 		}
 	}
+
+	public DefaultHttp11ResponseHandler.BUFFERING getBuffering() {
+		if (this.responseHandler instanceof Bufferable) {
+			Bufferable hrh = (Bufferable) responseHandler;
+			return hrh.getBuffering();
+		} else {
+			return null; // unknown
+		}
+	}
+
+	public void setBuffering(DefaultHttp11ResponseHandler.BUFFERING buffering) {
+		if (this.responseHandler instanceof Bufferable) {
+			Bufferable hrh = (Bufferable) responseHandler;
+			hrh.setBuffering(buffering);
+		} else {
+			throw new RuntimeException("Can't set buffering on unsupported Http11ResponseHandler: " + responseHandler.getClass());
+		}
+	}
+
+	public EntityTransport getEntityTransport() {
+		return entityTransport;
+	}
+
+	public void setEntityTransport(EntityTransport entityTransport) {
+		this.entityTransport = entityTransport;
+	}		
 }
