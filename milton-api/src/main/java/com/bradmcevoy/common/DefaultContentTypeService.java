@@ -48,7 +48,7 @@ public class DefaultContentTypeService implements ContentTypeService {
     public DefaultContentTypeService() {
         mapOfContentTypes = new ConcurrentHashMap<String, List<String>>();
         Properties p = new Properties();
-        InputStream in = getClass().getResourceAsStream("/mime-types.properties");
+        InputStream in = getClass().getResourceAsStream("/eu/medsea/util/mime-types.properties");
         if (in != null) {
             try {
                 p.load(in);
