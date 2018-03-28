@@ -18,12 +18,12 @@ These build on jitpack.io, for example:
 <dependency>
     <groupId>com.github.tizra.milton</groupId>
     <artifactId>milton-api</artifactId>
-    <version>1.8.1.4</version>
+    <version>1.8.1.4-tizra.1</version>
 </dependency>
 
 <dependency>
     <groupId>com.github.tizra.milton</groupId>
     <artifactId>milton-servlet</artifactId>
-    <version>1.8.1.4</version>
+    <version>1.8.1.4-tizra.1</version>
 </dependency>
 ```
